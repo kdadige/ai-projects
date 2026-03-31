@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+venv312/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Environment
+backend/.env
+frontend/.env.local
+*.env.local
+
+# Data / Model artifacts
+qdrant_storage/
+eval_results/
+ablation_*.json
+ablation_*.csv
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+nohup.out
+/tmp/
+
+# Upload temp
+/tmp/finbot_uploads/
+
