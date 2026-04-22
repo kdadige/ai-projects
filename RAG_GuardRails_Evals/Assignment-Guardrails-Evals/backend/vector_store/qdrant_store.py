@@ -6,7 +6,8 @@ import logging
 import uuid
 from typing import Any
 
-from openai import AsyncOpenAI
+import asyncio
+from sentence_transformers import SentenceTransformer
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
@@ -26,13 +27,14 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_DIM = 1536  # text-embedding-3-small dimension
+EMBEDDING_DIM = 384   # all-MiniLM-L6-v2 dimension
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 class QdrantStore:
     def __init__(self):
         self._client: AsyncQdrantClient | None = None
-        self._openai: AsyncOpenAI | None = None
+        self._model: SentenceTransformer | None = None
         self._collection = settings.qdrant_collection
 
     @property
@@ -45,10 +47,10 @@ class QdrantStore:
         return self._client
 
     @property
-    def openai(self) -> AsyncOpenAI:
-        if self._openai is None:
-            self._openai = AsyncOpenAI(api_key=settings.openai_api_key)
-        return self._openai
+    def model(self) -> SentenceTransformer:
+        if self._model is None:
+            self._model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        return self._model
 
     async def initialize(self, reset: bool = False):
         """Create or verify the Qdrant collection exists."""
@@ -89,23 +91,13 @@ class QdrantStore:
             logger.info(f"Collection {self._collection} already exists")
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for a list of texts using OpenAI."""
-        # Process in batches of 100
-        all_embeddings = []
-        batch_size = 100
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i+batch_size]
-            # Clean texts
-            batch = [t.replace("\n", " ").strip() for t in batch]
-            batch = [t if t else "empty" for t in batch]
-
-            response = await self.openai.embeddings.create(
-                model=settings.embedding_model,
-                input=batch,
-            )
-            batch_embeddings = [item.embedding for item in response.data]
-            all_embeddings.extend(batch_embeddings)
-        return all_embeddings
+        """Generate embeddings using a local sentence-transformers model (no API key needed)."""
+        cleaned = [t.replace("\n", " ").strip() or "empty" for t in texts]
+        loop = asyncio.get_event_loop()
+        embeddings = await loop.run_in_executor(
+            None, lambda: self.model.encode(cleaned, show_progress_bar=False)
+        )
+        return [e.tolist() for e in embeddings]
 
     async def upsert_chunks(self, chunks: list[dict[str, Any]]):
         """Embed and upsert a list of chunks into Qdrant."""
